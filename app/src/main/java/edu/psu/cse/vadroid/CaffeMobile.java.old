@@ -1,0 +1,514 @@
+package edu.psu.cse.vadroid;
+
+import android.os.Handler;
+import android.util.Log;
+import android.util.Pair;
+
+import org.bytedeco.javacpp.opencv_core;
+import org.bytedeco.javacpp.opencv_core.Size;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.OpenCVFrameConverter;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Scanner;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.Vector;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Created by Zack on 7/13/15.
+ */
+
+public class CaffeMobile {
+    private static final ArrayList<String> classes = new ArrayList<String>();
+    private static boolean initialized = false;
+    private ExecutorService extractService, classifyService;
+
+    public static final String RES_PATH = "/storage/emulated/0/vadroid/models/";
+    public static final String TMP_PATH = "/storage/emulated/0/vadroid/tmp/";
+    public static final String MODEL_NAME = "model.prototxt";
+    public static final String WEIGHTS_NAME = "weights.caffemodel";
+    public static final String MEAN_NAME = "mean.binaryproto";
+    public static final String SYNSET_NAME = "synset.txt";
+    public static final String VIDEOS_DIR = "/storage/emulated/0/DCIM/Camera/";
+    public static final String MODEL_PATH = RES_PATH + MODEL_NAME;
+    public static final String WEIGHTS_PATH = RES_PATH + WEIGHTS_NAME;
+    public static final String MEAN_PATH = RES_PATH + MEAN_NAME;
+    public static final String SYNSET_PATH = RES_PATH + SYNSET_NAME;
+    private static final String EXTRACT_PATH = "/storage/emulated/0/vadroid/extracted/";
+    private static final double db_fps = 1.0;
+    private static final int kResults = 13;
+    private static final int PROCESS_QUEUE_SIZE = 20;
+
+    private Initializer initializer = new Initializer(new InitCallable());
+    private Predictor predictor;
+
+    private enum ProcessMessage {
+        FRAME,
+        FINISH;
+    }
+
+
+    public static String getClass(int i) {
+        if (!initialized) {
+            CaffeMobile caffe = new CaffeMobile();
+            caffe.startInit();
+            if (!caffe.getInit())
+                return null;
+        }
+        String c = null;
+        try {
+            c = classes.get(i);
+        } catch (IndexOutOfBoundsException e) {
+            Log.e(VADroidUtils.TAG, "Caffe getClass index out of bounds");
+        }
+        return c;
+    }
+
+    public ArrayList<String> predictImage(String imgPath, int N) {
+        if (!initialized) {
+            startInit();
+            if (getInit())
+                return null;
+        }
+        int[] top_k = predImage(imgPath, N);
+        ArrayList<String> pred = new ArrayList<>();
+        for (int i : top_k) {
+            pred.add(CaffeMobile.getClass(i));
+        }
+        return pred;
+    }
+
+    /*public ArrayList<String> predictVideo(Video vid, String ffmpegPath, int N) {
+        if (!initialized) {
+            startInit();
+            if (getInit())
+                return null;
+        }
+        int[] top_k = predVideo(vid.path, EXTRACT_PATH, vid.fps, ffmpegPath, N);
+        ArrayList<String> pred = new ArrayList<>();
+        for (int i : top_k) {
+            pred.add(CaffeMobile.getClass(i));
+        }
+        return pred;
+    }*/
+
+    public int[] predictVideoInt(Video vid, String dir, String ffmpegPath, int N) {
+        startInit();
+        return predVideo(vid.path, dir, vid.fps, ffmpegPath, N);
+    }
+
+    public String getExtractionDir(Video vid) {
+        String basePath = EXTRACT_PATH + vid.name.split("\\.")[0];
+        String path = basePath;
+        File dir = new File(basePath);
+        int i = 1;
+        while (dir.exists()) {
+            path = basePath + "_" + i;
+            dir = new File(path);
+            i++;
+        }
+        path += "/";
+        path.replace(' ', '_');
+
+        VADroidUtils.buildDir(path);
+        return path;
+    }
+
+    public void startInit() {
+
+        if (initialized == true)
+            return;
+
+        ExecutorService exec = Executors.newSingleThreadExecutor();
+        exec.submit(initializer);
+    }
+
+    public boolean getInit() {
+        if (initializer == null)
+            return false;
+        if (initialized == true)
+            return true;
+        try {
+            return initializer.get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean isInit() {
+        return initialized;
+    }
+
+
+    private static native int loadModel(String model, String weights, String mean);
+
+    private static native int[] predImage(String imgPath, int N);
+
+    private static native int[] predVideo(String vidPath, String extractionPath, double fps, String ffmpegPath, int N);
+
+    private static native float[] predImageMat(long img, int topk);
+
+    private class Initializer extends FutureTask<Boolean> {
+
+        public Initializer(Callable<Boolean> callable) {
+            super(callable);
+        }
+
+        @Override
+        protected void done() {
+            try {
+                initialized = get();
+                return;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+            initialized = false;
+        }
+    }
+
+
+    private class InitCallable implements Callable<Boolean> {
+        @Override
+        public Boolean call() throws Exception {
+            try {
+                System.loadLibrary("caffe");
+                System.loadLibrary("caffe_jni");
+            } catch (Exception e) {
+                Log.e(VADroidUtils.TAG, "init failed: could not load caffe mobile libraries");
+                return false;
+            }
+                /*modelFolderPath = Environment.getExternalStorageDirectory().toString()
+                        + MODEL_FOLDER_NAME;
+                File file = new File(modelFolderPath);
+                if (!file.exists()) {
+                    file.mkdirs();
+                    Log.i("on create", "file folder created");
+
+                    for (int i = 0; i < MODEL_FILE_LIST.length; i++) {
+                        File f = new File(modelFolderPath + MODEL_FILE_LIST[i]);
+                        if (!f.exists())
+                            copyFile(MODEL_FILE_LIST[i], i, modelFolderPath
+                                    + MODEL_FILE_LIST[i]); // copy needed files to the
+                        // folder
+                    }
+                }*/
+
+
+            File model = new File(MODEL_PATH);
+            File weights = new File(WEIGHTS_PATH);
+            File mean = new File(MEAN_PATH);
+            boolean b1 = model.exists();
+            boolean b2 = weights.exists();
+            boolean b3 = mean.exists();
+            if (model.exists() && weights.exists() && mean.exists())
+                loadModel(MODEL_PATH, WEIGHTS_PATH, MEAN_PATH);
+            else {
+                Log.e(VADroidUtils.TAG, "init failed: data files not found");
+                return false;
+            }
+
+            try {
+                InputStream is = new FileInputStream(SYNSET_PATH);
+                Scanner sc = new Scanner(is);
+                while (sc.hasNextLine()) {
+                    final String temp = sc.nextLine();
+                    classes.add(temp.substring(temp.indexOf(" ") + 1));
+                }
+                if (classes.size() == 0)
+                    throw new IOException("Synset file of size 0");
+            } catch (IOException e) {
+                Log.e(VADroidUtils.TAG, "init failed: failed to read synset file");
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private class Predictor extends FutureTask<int[]> {
+
+        public Predictor(Callable<int[]> callable) {
+            super(callable);
+        }
+    }
+
+
+    /*private class PredictCallable implements Callable<int[]> {
+        private Video vid;
+        private String dir;
+        private String ffmpegPath;
+        private int N;
+
+        public PredictCallable(Video vid, String dir, String ffmpegPath, int N) {
+            this.vid = vid;
+            this.dir = dir;
+            this.ffmpegPath = ffmpegPath;
+            this.N = N;
+        }
+
+        @Override
+        public int[] call() throws Exception {
+            if (!initialized) {
+                startInit();
+                if (getInit())
+                    return null;
+            }
+            Notifier.setProcess(Notifier.Location.LOCAL, VideoProcess.ProcessState.CLASSIFYING, 0);
+            int pred[] = predVideo(vid.path, dir, vid.fps, ffmpegPath, N);
+            Notifier.setProcess(Notifier.Location.LOCAL, VideoProcess.ProcessState.FINISHED, 0);
+            return pred;
+        }
+    }*/
+
+    public void addVideoProcessAll(VANet vanet, ExecutorService sendService, Video vid) {
+        if (extractService == null)
+            extractService = Executors.newSingleThreadExecutor();
+        if (classifyService == null)
+            classifyService = Executors.newSingleThreadExecutor();
+
+        extractService.submit(new AsyncExtractor(vanet, sendService, vid));
+    }
+
+    public void waitAll() {
+        if (extractService != null) {
+            extractService.shutdown();
+            try {
+                extractService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            extractService = null;
+        }
+
+        if (classifyService != null) {
+            classifyService.shutdown();
+            try {
+                classifyService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            classifyService = null;
+        }
+    }
+
+    private class AsyncExtractor implements Callable<Void> {
+        private VANet vanet;
+        private Video vid;
+        private ExecutorService sendService;
+
+        public AsyncExtractor(VANet vanet, ExecutorService sendService, Video vid) {
+            this.vanet = vanet;
+            this.vid = vid;
+            this.sendService = sendService;
+        }
+
+        @Override
+        public Void call() throws Exception {
+            long processtime;
+            long extractime;
+            SortedMap<String, Integer> mapText = new TreeMap<String, Integer>();
+            int n_frame_extracted = 0;
+            int n_completed = 0;
+            opencv_core.Mat mat;
+            Vector<opencv_core.Mat> vecMat = new Vector<opencv_core.Mat>();
+
+            AsyncClassifier classifier = new AsyncClassifier(vanet, sendService, vid);
+            try {
+                classifyService.submit(classifier);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            BlockingQueue queue = classifier.getQueue();
+
+            FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(vid.path);
+            try {
+                OpenCVFrameConverter.ToMat converterToMat = new OpenCVFrameConverter.ToMat();
+                try {
+                    grabber.start();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                int frame_count = grabber.getLengthInFrames();
+                vid.fps = grabber.getFrameRate();
+
+                int increment;
+                if (db_fps == 0. || db_fps >= vid.fps)
+                    increment = 1;
+                else
+                    increment = (int) (vid.fps / db_fps);
+
+                for (int i = 0; i < frame_count; i += increment) {
+                    if (i > 0 && increment > 1)
+                        grabber.setFrameNumber(i);
+                    Frame frame = grabber.grabFrame(true, false, false);
+                    if (frame == null) break;
+                    if (frame.image == null) continue;
+                    mat = converterToMat.convert(frame);
+                    if (mat == null) continue;
+
+                    Size sz = new Size(256, 256);
+                    org.bytedeco.javacpp.opencv_imgproc.resize(mat, mat, sz);
+                    org.bytedeco.javacpp.opencv_core.transpose(mat, mat);
+                    org.bytedeco.javacpp.opencv_core.flip(mat, mat, 1);
+                    vecMat.add(mat.clone());
+                    if (queue != null) {
+                        queue.put(new Pair(ProcessMessage.FRAME, mat));
+                    }
+                    //handler.obtainMessage(ProcessMessage.FRAME.ordinal(), mat).sendToTarget();
+                    n_frame_extracted++;
+                }
+                //handler.obtainMessage(ProcessMessage.FINISH.ordinal()).sendToTarget();
+                queue.put(new Pair(ProcessMessage.FINISH, null));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+    }
+
+    private class AsyncClassifier implements Callable<Void> {
+        private VANet vanet;
+        private ExecutorService sendService;
+        private Video vid;
+        private Vector<float[]> vec;
+        /*private Handler handler;
+        private Object handlerLock, finishLock;
+        private boolean finished;*/
+        private BlockingQueue<Pair<ProcessMessage, opencv_core.Mat>> queue;
+
+        public AsyncClassifier(VANet vanet, ExecutorService sendService, Video vid) {
+            this.vanet = vanet;
+            this.sendService = sendService;
+            this.vid = vid;
+            vec = new Vector<>();
+            /*this.handlerLock = new Object();
+            this.finishLock = new Object();
+            this.finished = false;*/
+            this.queue = new LinkedBlockingQueue<>(PROCESS_QUEUE_SIZE);
+        }
+
+        @Override
+        public Void call() throws Exception {
+            /*Looper.prepare();
+            synchronized (handlerLock) {
+                    Looper.prepare();
+                    handler = new Handler(new Handler.Callback() {
+                        @Override
+                        public boolean handleMessage(Message message) {
+                            if (message.what == ProcessMessage.FINISH.ordinal()) {
+                                finished = true;
+                                finishLock.notifyAll();
+                                Looper.myLooper().quitSafely();
+                            } else if (message.what == ProcessMessage.FRAME.ordinal()) {
+                                if (!CaffeMobile.this.getInit()) {
+                                    Notifier.endCaffeInit();
+                                    return true;
+                                }
+                                Notifier.endCaffeInit();
+                                opencv_core.Mat mat = (opencv_core.Mat) message.obj;
+                                if (mat != null) {
+                                    float[] result = predImageMat(mat.address(), kResults);
+                                    vec.add(result);
+                                }
+                            }
+                            return true;
+                        }
+                    });
+
+            }
+            Looper.loop();
+            // Handler created, ready to be returned to caller
+            handlerLock.notifyAll();
+            // Wait until all frames have been processed
+            while (!finished)
+                finishLock.wait();*/
+            Pair pair;
+            while (true) {
+                pair = queue.take();
+                if (pair.first == ProcessMessage.FINISH) {
+                    //finished = true;
+                    break;
+                } else if (pair.first == ProcessMessage.FRAME) {
+                    if (!CaffeMobile.this.getInit()) {
+                        Notifier.endCaffeInit();
+                        return null;
+                    }
+                    Notifier.endCaffeInit();
+                    opencv_core.Mat mat = (opencv_core.Mat) pair.second;
+                    if (mat != null) {
+                        float[] result = predImageMat(mat.address(), kResults);
+                        vec.add(result);
+                    }
+                }
+            }
+
+
+            float[] total = new float[kResults];
+            Vector<Pair<Integer, Float>> sorted = new Vector<>();
+            for (float[] frame : vec) {
+                for (int i = 0; i < kResults; i++) {
+                    total[i] += frame[i];
+                }
+            }
+
+            for (int i = 0; i < kResults; i++) {
+                sorted.add(new Pair<>(i, total[i]));
+            }
+            Collections.sort(sorted, new Comparator<Pair<Integer, Float>>() {
+                @Override
+                public int compare(Pair<Integer, Float> floatIntegerPair, Pair<Integer, Float> t1) {
+                    return Float.compare(floatIntegerPair.second, t1.second);
+                }
+            });
+
+            vid.tags.clear();
+            for (Pair<Integer, Float> p : sorted) {
+                vid.tags.add(p.first);
+            }
+
+            sendService.submit(vanet.getAsyncSender(VANet.UploadTask.INFO, vid));
+
+            return null;
+        }
+
+        public BlockingQueue<Pair<ProcessMessage, opencv_core.Mat>> getQueue() {
+            return this.queue;
+        }
+
+        /*public Handler getHandler() {
+            synchronized (handlerLock) {
+                while (handler == null) {
+                    try {
+                        handlerLock.wait();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            return handler;
+        }*/
+
+    }
+
+}

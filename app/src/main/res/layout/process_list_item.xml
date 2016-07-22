@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content" android:layout_height="wrap_content">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:id="@+id/textViewProcessItemName"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true"
+        android:layout_marginTop="4dip"
+        android:layout_marginBottom="2dip"/>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="9sp"
+        android:id="@+id/textViewProcessItemStatus"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@+id/textViewProcessItemName"
+        android:layout_marginBottom="4dip"/>
+
+    <ViewSwitcher
+        android:layout_width="24dip"
+        android:layout_height="24dip"
+        android:id="@+id/viewSwitcherProcessItem"
+        android:layout_centerVertical="true"
+        android:layout_alignParentRight="true">
+
+        <ProgressBar
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/progressBarProcessItem"
+            android:layout_gravity="center" />
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/imageViewProcessItem"
+            android:layout_gravity="center" />
+
+    </ViewSwitcher>
+
+</RelativeLayout>

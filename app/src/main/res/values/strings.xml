@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">VADroid</string>
+    <string name="notif_prefix">"VADroid: %s"</string>
+    <string name="notif_listening">"Currently running."</string>
+    <string name="notif_end_listening">Listening ended.</string>
+    <string name="touch_restart">Touch to restart.</string>
+    <string name="touch_settings">Touch to open VADroid.</string>
+    <string name="notif_error">Error</string>
+    <string name="notif_process">Processing video.</string>
+    <string name="notif_upload">Uploading video to server.</string>
+    <string name="prog_process">Processing video(s.)</string>
+    <string name="prog_upload">Uploading video(s).</string>
+    <string name="action_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="btn_select_dir">Select Directory</string>
+    <string name="no_dir">No directory selected</string>
+    <string name="dir_sync">Directory Sync</string>
+    <string name="btn_start">Start listening</string>
+    <string name="btn_stop">Stop listening</string>
+    <string name="extr_time">"Extraction time: %d ms"</string>
+    <string name="pred_time">"Prediction time: %d ms"</string>
+    <string name="title_activity_main">VADroid</string>
+
+    <string name="title_section1">Section 1</string>
+    <string name="title_section2">Section 2</string>
+    <string name="title_section3">Section 3</string>
+    <string name="package_name">edu.psu.cse.vadroid</string>
+
+    <string name="pref_directory">DIRECTORY</string>
+
+<!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+</resources>

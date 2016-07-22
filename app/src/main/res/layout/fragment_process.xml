@@ -1,0 +1,137 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="edu.psu.cse.vadroid.ProcessFragment">
+
+    <!-- TODO: Update blank fragment layout -->
+    <ViewSwitcher
+        android:id="@+id/viewSwitcherProcess"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:id="@+id/layoutQueryStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/textViewQuery"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="10dp"
+                android:textAppearance="?android:attr/textAppearanceLarge" />
+
+            <!-- <ProgressBar
+                android:id="@+id/progressBar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:layout_gravity="center_horizontal"
+                android:visibility="invisible" /> -->
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:visibility="invisible"
+                style="?android:attr/progressBarStyleLarge"/>
+
+        </LinearLayout>
+
+        <RelativeLayout
+            android:id="@+id/layoutProcessLists"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <View
+                android:id="@+id/centerShim"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_centerHorizontal="true"
+                android:visibility="invisible" />
+
+            <TextView
+                android:id="@+id/textViewLocal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:layout_alignParentTop="true"
+                android:layout_marginLeft="10dp"
+                android:layout_marginTop="10dp"
+                android:text="Local"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/textViewServer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_marginLeft="10dp"
+                android:layout_marginTop="10dp"
+                android:layout_toRightOf="@+id/centerShim"
+                android:text="Server"
+                android:textSize="14sp" />
+
+
+            <ViewSwitcher
+                android:id="@+id/viewSwitcherLocalProcess"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_below="@id/textViewLocal"
+                android:layout_centerVertical="true"
+                android:layout_margin="10dp"
+                android:layout_toLeftOf="@id/centerShim">
+
+                <ListView
+                    android:id="@+id/listViewLocal"
+                    android:layout_width="fill_parent"
+                    android:layout_height="fill_parent"
+                    android:layout_toLeftOf="@id/centerShim" />
+
+                <LinearLayout
+                    android:id="@+id/layoutLocalProcessInit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/textViewLocalInit"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginBottom="5dp"
+                        android:text="Initializing Caffe"/>
+
+                    <ProgressBar
+                        android:id="@+id/progressBarLocalInit"
+                        style="?android:attr/progressBarStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal" />
+
+
+                </LinearLayout>
+
+            </ViewSwitcher>
+
+            <ListView
+                android:id="@+id/listViewServer"
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/textViewLocal"
+                android:layout_centerVertical="true"
+                android:layout_margin="10dp"
+                android:layout_toRightOf="@id/centerShim" />
+
+        </RelativeLayout>
+
+    </ViewSwitcher>
+
+</FrameLayout>

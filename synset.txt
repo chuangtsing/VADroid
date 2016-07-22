@@ -1,0 +1,13 @@
+Person
+Soldier
+Army Tank
+Military Vehicle
+Truck
+Car
+Launcher
+Rifle
+Explosion
+Ship
+Helicopter
+Animal
+Background
